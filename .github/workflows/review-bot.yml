@@ -1,0 +1,227 @@
+# REVIEW BOT: an AI model reviews each push to main and comments on the commit.
+# It also follows REVIEWBOT.md and AGENTS.md, if you add them. Both are optional.
+#
+# Until you set it up or opt out, every push gets a reminder comment and a red X.
+#
+# SET UP
+#   1. On https://api.bayleaf.dev/dashboard, under "Temporary inference tokens", create
+#      a token for openrouter:z-ai/glm-5.3-flash. Set its lifetime to 2592000 seconds
+#      (30 days; the default is only one hour).
+#   2. In this repository, go to Settings > Secrets and variables > Actions, and save
+#      the token as a secret named REVIEW_BOT_TOKEN. Repeat these steps when it expires.
+#
+# OPT OUT: it's your choice, and your project doesn't depend on this.
+#   Change "if: true" to "if: false" below, or delete this file.
+name: Review Bot
+
+on:
+  push:
+    branches: ["main"]
+
+permissions: {}
+
+# A newer push makes an older review moot.
+concurrency:
+  group: review-bot
+  cancel-in-progress: true
+
+jobs:
+  # The model may do anything on this throwaway machine, which has no key that can
+  # change the repository. Only the review/ folder leaves it.
+  review:
+    if: true # OPT OUT: change true to false to turn the review bot off.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      ready: ${{ steps.model.outputs.ready }}
+      files: ${{ steps.upload.outputs.artifact-url }}
+    env:
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Try one tiny request to the model
+        id: model
+        run: |
+          # Only ever send a temporary token: a general key could do far more than this needs.
+          case "$REVIEW_BOT_TOKEN" in
+            "") reason="this repository has no REVIEW_BOT_TOKEN secret." ;;
+            sk-bayleaf-grant-*)
+              status=$(curl -s -o /dev/null -w '%{http_code}' https://api.bayleaf.dev/v1/chat/completions \
+                -H "Authorization: Bearer $REVIEW_BOT_TOKEN" -H 'Content-Type: application/json' \
+                -d '{"model":"openrouter:z-ai/glm-5.3-flash","max_tokens":16,"messages":[{"role":"user","content":"Hi"}]}') || true
+              case "$status" in
+                200) echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                401) reason="its token is invalid, expired, or revoked." ;;
+                *) reason="BayLeaf answered with status $status." ;;
+              esac ;;
+            *) reason="its secret isn't a temporary token (starting sk-bayleaf-grant-). A general BayLeaf API key can do far more than this bot needs, so it wasn't used: replace the secret with a temporary token." ;;
+          esac
+          repo="https://github.com/$GITHUB_REPOSITORY"
+          mkdir -p review
+          cat > review/review.md <<EOF
+          **Your review bot can't review this push yet: $reason**
+
+          This comment and a red X come back on every push until you do one of two things:
+
+          - **Set up:** follow the steps at the top of [the workflow]($repo/blob/main/.github/workflows/review-bot.yml), then push any commit. They end at [this repository's secrets page]($repo/settings/secrets/actions).
+          - **Opt out:** [edit the workflow]($repo/edit/main/.github/workflows/review-bot.yml) and change "if: true" to "if: false", or delete that file.
+          EOF
+        env:
+          REVIEW_BOT_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN }}
+      # Anyone can comment on a public commit, so only the bot's own comments and those
+      # of people with access to this repository reach the model.
+      - name: Collect past reviews and replies
+        if: steps.model.outputs.ready
+        run: >
+          gh api "repos/$GH_REPO/comments" --paginate
+          --jq '.[] | select(.user.login == "github-actions[bot]" or (.author_association | IN("OWNER", "MEMBER", "COLLABORATOR")))
+          | {author: .user.login, commit: .commit_id, body}'
+          > past-comments.jsonl
+        env:
+          GH_TOKEN: ${{ github.token }}
+      # A push starts every workflow at once, so wait for the others to finish.
+      - name: Save failure logs from this commit's other workflows
+        if: steps.model.outputs.ready
+        run: |
+          sleep 15
+          : > ci-output.txt
+          for run in $(gh run list --commit "$GITHUB_SHA" --json databaseId,workflowName \
+            --jq '.[] | select(.workflowName != "Review Bot") | .databaseId'); do
+            gh run watch "$run" --exit-status > /dev/null || gh run view "$run" --log-failed >> ci-output.txt || true
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+      # Ready-made tools, so the model spends its steps reviewing, not looking around.
+      - uses: denoland/setup-deno@v2.0.5
+        if: steps.model.outputs.ready
+        with:
+          deno-version: v2.9.7
+      - if: steps.model.outputs.ready
+        run: |
+          npm install --global @opencode/cli@2.2.5
+          cd ~ && npm install playwright-core && npx playwright-core install ffmpeg
+      - name: Review this push
+        if: steps.model.outputs.ready
+        shell: bash
+        run: |
+          # Stop before the job's own timeout, so a draft can still be posted.
+          status=0
+          timeout --kill-after=10 1020 opencode run --standalone --auto --model bayleaf/glm --format json "$INSTRUCTIONS
+
+          Review the push from $BEFORE to $GITHUB_SHA." | tee "$RUNNER_TEMP/events.jsonl" || status=$?
+          if [ -s review/review.md ]; then
+            # opencode can exit 1 even after recovering from a dropped connection, so ask
+            # how the session ended instead: a finished one's last step stopped by itself.
+            # A killed run's last step wanted more tools, or its events are cut off.
+            ended=$(jq -rs '[.[] | select(.type == "step_finish")] | last.part.reason' "$RUNNER_TEMP/events.jsonl" || true)
+            echo "opencode exited $status, and its last step's reason was: $ended"
+            if [ "$ended" != "stop" ]; then
+              printf '**Partial review: this run ended early, so this is an unfinished draft.**\n\n' | cat - review/review.md > "$RUNNER_TEMP/partial.md"
+              mv "$RUNNER_TEMP/partial.md" review/review.md
+            fi
+            # The footer is measured here, not written by the model. A killed run may leave
+            # its last event cut off, and then it goes without a footer.
+            jq -rs --arg harness "$(opencode --version)" \
+              '[.[] | select(.type == "step_finish").part] |
+              "\n\n---\n<sub>\($harness) · openrouter:z-ai/glm-5.3-flash · \(length) steps · $\(map(.cost) | add | . * 10000 | round / 10000) API spend</sub>"' \
+              "$RUNNER_TEMP/events.jsonl" >> review/review.md || true
+          fi
+        env:
+          REVIEW_BOT_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN }}
+          BEFORE: ${{ github.event.before }}
+          OPENCODE_DISABLE_FREE_MODELS: "1"
+          OPENCODE_CONFIG_CONTENT: |
+            {
+              "providers": {
+                "bayleaf": {
+                  "env": ["REVIEW_BOT_TOKEN"],
+                  "package": "@opencode/ai/providers/openai-compatible",
+                  "settings": { "baseURL": "https://api.bayleaf.dev/v1" },
+                  "models": {
+                    "glm": {
+                      "modelID": "openrouter:z-ai/glm-5.3-flash"
+                    }
+                  }
+                }
+              }
+            }
+          INSTRUCTIONS: |
+            You review this repository. Write your review to review/review.md, and a later
+            step posts it, as plain Markdown text, as a comment on the commit. Write a first
+            draft there as soon as you have a finding, and keep it current: if this run dies,
+            that file is posted, marked as partial.
+
+            What you have:
+            - A throwaway machine where you may do anything, including installing tools and
+              browsing the web. Deno, Node, and Chrome are ready, with playwright-core in
+              ~/node_modules: write Playwright scripts under ~, launch with channel: "chrome",
+              and recordVideo works. Playwright's own ffmpeg is in ~/.cache/ms-playwright, and
+              ffmpeg and ffprobe are not on PATH, so keep videos as raw .webm files, without
+              trimming or inspecting them. Don't spend steps checking for these.
+            - If a script hits a timeout, the script is broken: fix it, rather than rerunning it
+              in the background or sleeping on it. Kill only by PID, never with pkill.
+            - past-comments.jsonl: earlier reviews (by github-actions[bot]) and replies from
+              people with access to this repository.
+            - ci-output.txt: failure logs from this commit's other workflows, if any.
+            - The rest of review/: anything else you save there is linked from the comment as
+              a zip. It's public if this repository is, so never save tokens or environment
+              variables there, and leave out dependencies.
+
+            REVIEWBOT.md and AGENTS.md, if they exist, decide what the review covers and how it
+            reads. They override all of these defaults:
+            - Check the whole project against what it says it should do, not only this push.
+              Mostly read the source and run its simple test commands. Run the whole thing in a
+              browser only when this push looks like a major milestone, or when a finding can
+              only be confirmed that way. Check official docs when a finding depends on a tool's
+              behavior.
+            - Keep it short, and don't count words: what you tried, what's going well, gaps and
+              why they matter, and questions that lead to fixes without writing them. Explain
+              the first CI error.
+            - Say so first if this push changed REVIEWBOT.md, AGENTS.md, or this workflow.
+            - End with a table of findings: ID, status, first seen commit, note. Keep IDs across
+              reviews, and take replies seriously.
+            - Save a short video only to reproduce a bug, or to show something working for the
+              first time.
+            - If you save files, list the interesting ones in a line or two, saying what each shows.
+              Don't list review.md.
+            - Never mention grades, points, or deadlines.
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: review
+          path: review/
+          if-no-files-found: error
+          retention-days: 30
+
+  # This key can push code, so it stays on a separate machine with no model and none
+  # of the repository's code, and it only posts review.md. Green means you got a review, whatever it says. Red means
+  # you didn't, never that your code did badly; the comment or the log says why.
+  post:
+    needs: review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: review
+      - name: Comment on the commit
+        run: |
+          if [ "$(find . -type f | wc -l)" -gt 1 ]; then
+            printf '\n\n[Download the files from this review](%s) (30 days; needs a GitHub login).\n' "$FILES" >> review.md
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments" -F body=@review.md
+          if [ "$READY" != "true" ]; then
+            echo "::error title=Review bot not set up::The comment on this commit explains what to do."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          READY: ${{ needs.review.outputs.ready }}
+          FILES: ${{ needs.review.outputs.files }}

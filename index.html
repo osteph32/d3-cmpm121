@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>D3 project</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/game/style.css" />
+  </head>
+  <body>
+    <main id="app">
+      <div id="grid"></div>
+      <aside id="hud">
+        <dl>
+          <dt>Position</dt>
+          <dd id="position"></dd>
+          <dt>Terrain</dt>
+          <dd id="terrain"></dd>
+        </dl>
+        <p id="live" aria-live="polite"></p>
+        <button id="mute" type="button" aria-pressed="false">Sound: on</button>
+      </aside>
+    </main>
+    <script type="module" src="/game/main.ts"></script>
+  </body>
+</html>

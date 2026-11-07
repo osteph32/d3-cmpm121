@@ -1,0 +1,83 @@
+/* The page around the grid. Everything here is yours to restyle. */
+body {
+  margin: 0;
+  background: #14161a;
+  color: #e8e4da;
+  font: 14px system-ui, sans-serif;
+}
+
+#app {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px;
+}
+
+#grid canvas {
+  display: block;
+  border-radius: 4px;
+}
+
+#hud {
+  flex: 1 1 200px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#hud dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+}
+
+#hud dt {
+  color: #8d8a82;
+}
+
+#hud dd {
+  margin: 0;
+}
+
+#live {
+  min-height: 1.4em;
+  margin: 0;
+  font-family: monospace;
+  color: #b7b3a8;
+}
+
+#mute {
+  align-self: start;
+  padding: 4px 10px;
+  color: inherit;
+  background: #262a31;
+  border: 1px solid #3a3f48;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Slight tilt and vignette: pure presentation, Phaser untouched. */
+#grid {
+  position: relative;
+  perspective: 1200px;
+}
+
+#grid canvas,
+#grid::after {
+  transform: rotateX(6deg);
+}
+
+#grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 4px;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgb(0 0 0 / 0.5) 100%
+  );
+}

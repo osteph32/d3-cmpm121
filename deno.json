@@ -1,0 +1,27 @@
+{
+  "workspace": ["core", "game"],
+  "nodeModulesDir": "auto",
+  "lint": { "rules": { "tags": ["recommended"] } },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 80,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
+  "tasks": {
+    "setup": "deno install && deno run --allow-run=git scripts/setup-hooks.ts",
+    "dev": "deno install && deno run -A npm:vite@8.3.1",
+    "build": "deno install && deno run -A npm:vite@8.3.1 build",
+    "preview": "deno run -A npm:vite@8.3.1 preview",
+    "check": "deno check core && deno check game",
+    "lint": "deno lint",
+    "fmt": "deno fmt",
+    "fmt:check": "deno fmt --check",
+    "test": "deno test core",
+    "boundary": "deno run --allow-read=core,game --allow-run=deno scripts/check-boundary.ts",
+    "ci": "deno fmt --check && deno lint && deno task check && deno task test && deno task boundary && deno task build"
+  },
+  "exclude": ["node_modules", "dist", ".git"]
+}
