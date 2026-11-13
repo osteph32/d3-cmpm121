@@ -1,20 +1,8 @@
-/* Parchment ledger: aged paper, iron-gall ink, wax seals. */
-@import url("https://fonts.googleapis.com/css2?family=EB+Garamond:ital@0;1&display=swap");
-
-:root {
-  --paper: #f4e8c1;
-  --ink: #2b1d0e;
-  --faded: #7a6b52;
-  --rule: #c9b896;
-  --margin: #d4c4a0;
-  --accent: #8b2500;
-}
-
 body {
   margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font: 14px "EB Garamond", "Palatino Linotype", Palatino, serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font: 14px sans-serif;
 }
 
 #app {
@@ -26,9 +14,7 @@ body {
 
 #grid canvas {
   display: block;
-  border: 2px solid var(--faded);
-  border-radius: 0;
-  box-shadow: 2px 2px 6px rgba(43, 29, 14, 0.3);
+  border: 2px solid #444;
 }
 
 #hud {
@@ -37,14 +23,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: var(--paper);
-  background-image: repeating-linear-gradient(
-    transparent,
-    transparent 27px,
-    var(--rule) 27px,
-    var(--rule) 28px
-  );
-  border-left: 3px solid var(--margin);
+  border-left: 2px solid #444;
   padding-left: 12px;
 }
 
@@ -56,7 +35,7 @@ body {
 }
 
 #hud dt {
-  color: var(--faded);
+  color: #999;
   font-style: italic;
 }
 
@@ -69,14 +48,12 @@ body {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-style: italic;
-  color: var(--accent);
+  color: #73dca8;
 }
 
 #inventory li::before {
   content: "◆ ";
-  color: var(--faded);
-  font-style: normal;
+  color: #555;
 }
 
 #recipes {
@@ -93,69 +70,46 @@ body {
   display: block;
   width: 100%;
   padding: 4px 10px;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--faded);
+  color: #e0e0e0;
+  background: #2a2a3e;
+  border: 1px solid #555;
   border-radius: 0;
   cursor: pointer;
   font: inherit;
   text-align: left;
-  box-shadow: 1px 1px 2px rgba(43, 29, 14, 0.2);
 }
 
 #recipes button:hover {
-  background: var(--margin);
+  background: #3a3a4e;
 }
 
 #live {
   min-height: 1.4em;
   margin: 0;
-  font-family: "EB Garamond", serif;
-  font-style: italic;
-  color: var(--faded);
-  border-bottom: 1px solid var(--rule);
+  color: #999;
+  border-bottom: 1px solid #444;
   padding-bottom: 4px;
 }
 
 #mute {
   align-self: start;
   padding: 4px 10px;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--faded);
+  color: #e0e0e0;
+  background: #2a2a3e;
+  border: 1px solid #555;
   border-radius: 0;
   cursor: pointer;
   font: inherit;
-  box-shadow: 1px 1px 2px rgba(43, 29, 14, 0.2);
 }
 
 #mute:hover {
-  background: var(--margin);
+  background: #3a3a4e;
 }
 
 #mute[aria-pressed="true"] {
-  color: var(--faded);
-  font-style: italic;
+  color: #888;
 }
 
 #grid {
   position: relative;
-  perspective: 1200px;
-}
-
-#grid canvas,
-#grid::after {
-  transform: rotateX(4deg);
-}
-
-#grid::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 50%,
-    rgba(43, 29, 14, 0.15) 100%
-  );
 }
