@@ -17,6 +17,15 @@ export function isPassable(terrain: Terrain): boolean {
   return terrain !== "water" && terrain !== "rock";
 }
 
+// Type Object: what each terrain yields is a row of data, not a branch in code.
+// Adding a new yield is adding a row, not adding an if statement.
+export const TERRAIN_YIELDS: Record<Terrain, string | null> = {
+  grass: "fiber",
+  forest: "wood",
+  water: null,
+  rock: null,
+};
+
 // Value noise: random numbers at coarse grid points, blended between them, so
 // that terrain forms regions instead of static.
 function noise(seed: number, x: number, y: number, scale: number): number {

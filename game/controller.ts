@@ -37,6 +37,17 @@ export class Controller {
   }
 
   private keyDown(event: KeyboardEvent) {
+    // Handle gather before the arrow check, since keyDown returns early for
+    // non-arrow keys. Avoid Space and Enter, which buttons keep for themselves.
+    if (
+      event.key === "g" && !event.ctrlKey && !event.metaKey && !event.altKey
+    ) {
+      event.preventDefault();
+      if (event.repeat) return;
+      this.pressed = { type: "gather" };
+      this.next();
+      return;
+    }
     const direction = ARROWS[event.key];
     if (!direction || event.ctrlKey || event.metaKey || event.altKey) return;
     // Otherwise arrow keys would also scroll the page.
