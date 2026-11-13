@@ -4,6 +4,13 @@ function element(id: string): HTMLElement {
   return document.getElementById(id)!;
 }
 
+// The HUD (heads-up display): the text panel beside the grid.
+// describe() turns each event into a human-readable sentence.
+// show() is called by the presenter whenever an event plays, updating
+// the #live paragraph and specific sections per event type.
+// The inventory is rebuilt from the event's copy (event.inventory),
+// never from game.state, so the display matches what the player has
+// seen happen, not what the core has already done ahead of the animation.
 function describe(event: GameEvent): string {
   switch (event.type) {
     case "moved":
@@ -14,15 +21,22 @@ function describe(event: GameEvent): string {
       return `gathered ${event.item} at ${event.at.x}, ${event.at.y}`;
     case "gatherFailed":
       return `nothing to gather at ${event.at.x}, ${event.at.y}`;
+    case "crafted":
+      return `crafted ${event.output}`;
+    // craftFailed lists what is still missing, e.g. "need 3 fiber for cloth"
+    case "craftFailed": {
+      const needs = Object.entries(event.missing).map(([item, count]) =>
+        `${count} ${item}`
+      ).join(", ");
+      return needs
+        ? `need ${needs} for ${event.recipe}`
+        : `unknown recipe: ${event.recipe}`;
+    }
   }
 }
 
-// The readout, as ordinary page elements that CSS can style and that assistive
-// tools can read. It changes only as events play.
 export class Hud {
   private readonly seed: number;
-  // Cells the player has gathered from, learned from events so the HUD never
-  // asks the core about the present (which may be ahead of what has played).
   private changedCells: Set<string> = new Set();
 
   constructor(state: GameState) {
@@ -32,23 +46,36 @@ export class Hud {
 
   show(event: GameEvent) {
     element("live").textContent = describe(event);
+    // moved: update position/terrain readout
     if (event.type === "moved") this.showPosition(event.to.x, event.to.y);
-    // On a successful gather, record the depleted cell and refresh the terrain
-    // readout so it shows the depleted state right away.
+    // gathered: mark cell as depleted, update position, refresh inventory
     if (event.type === "gathered") {
       this.changedCells.add(`${event.at.x},${event.at.y}`);
       this.showPosition(event.at.x, event.at.y);
+      this.showInventory(event.inventory);
+    }
+    // crafted: refresh inventory (inputs spent, output added)
+    if (event.type === "crafted") {
+      this.showInventory(event.inventory);
     }
   }
 
   private showPosition(x: number, y: number) {
     element("position").textContent = `${x}, ${y}`;
-    // terrainAt only knows the seed, so it cannot see player changes. The
-    // changedCells set, filled from events, tracks depletion instead.
     const terrain = terrainAt(this.seed, x, y);
     const depleted = this.changedCells.has(`${x},${y}`);
     element("terrain").textContent = depleted
       ? `${terrain} (depleted)`
       : terrain;
+  }
+
+  private showInventory(inventory: Record<string, number>) {
+    const list = element("inventory");
+    list.innerHTML = "";
+    for (const [item, count] of Object.entries(inventory)) {
+      const li = document.createElement("li");
+      li.textContent = `${item}: ${count}`;
+      list.appendChild(li);
+    }
   }
 }

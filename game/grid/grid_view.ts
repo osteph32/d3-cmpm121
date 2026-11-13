@@ -9,6 +9,7 @@ const VIEW_WIDTH = 800;
 const VIEW_HEIGHT = 600;
 const WALK_MS = 120;
 const BUMP_MS = 60;
+const GATHER_MS = 180;
 const MARKER_COLOR = 0xf5e6a8;
 const BUMP_COLOR = 0xe0533d;
 
@@ -95,13 +96,15 @@ export class GridView extends Phaser.Scene {
       case "blocked":
         return this.bump(event.at, event.toward);
       case "gathered":
-        // Record the depleted cell so it survives future repaints, then repaint
-        // immediately to dim it.
         this.changedCells.add(`${event.at.x},${event.at.y}`);
         this.drawCellsAround(event.at);
-        return Promise.resolve();
+        return this.gatherPulse();
       case "gatherFailed":
         // Nothing to show: no movement, no visual change.
+        return Promise.resolve();
+      case "crafted":
+        return this.gatherPulse();
+      case "craftFailed":
         return Promise.resolve();
       default:
         // A new event type fails to type-check here until it has a presentation.
@@ -137,6 +140,21 @@ export class GridView extends Phaser.Scene {
           this.marker.setFillStyle(MARKER_COLOR);
           done();
         },
+      });
+    });
+  }
+
+  // Pulse the marker's scale to show a gather, then return to normal.
+  private gatherPulse(): Promise<void> {
+    return new Promise((done) => {
+      this.tweens.add({
+        targets: this.marker,
+        scaleX: 1.5,
+        scaleY: 1.5,
+        duration: GATHER_MS * 0.4,
+        yoyo: true,
+        ease: "Quad.easeOut",
+        onComplete: () => done(),
       });
     });
   }

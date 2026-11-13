@@ -3,6 +3,7 @@ import {
   apply,
   cellYield,
   type GameState,
+  isPassable,
   newGame,
   TERRAIN_YIELDS,
   terrainAt,
@@ -43,7 +44,12 @@ Deno.test("gathering from a yielding cell adds the item to inventory", () => {
   // and the inventory count for that item becomes 1.
   const events = apply(state, { type: "gather" });
 
-  assertEquals(events, [{ type: "gathered", at: { x, y }, item }]);
+  assertEquals(events, [{
+    type: "gathered",
+    at: { x, y },
+    item,
+    inventory: { [item]: 1 },
+  }]);
   assertEquals(state.inventory[item], 1);
 });
 
@@ -56,7 +62,12 @@ Deno.test("gathering twice from one cell gives nothing the second time", () => {
   const first = apply(state, { type: "gather" });
   const second = apply(state, { type: "gather" });
 
-  assertEquals(first, [{ type: "gathered", at: { x, y }, item }]);
+  assertEquals(first, [{
+    type: "gathered",
+    at: { x, y },
+    item,
+    inventory: { [item]: 1 },
+  }]);
   assertEquals(second, [{ type: "gatherFailed", at: { x, y } }]);
   assertEquals(state.inventory[item], 1);
 });
@@ -99,3 +110,53 @@ Deno.test("cellYield reports null on a depleted cell", () => {
 
   assertEquals(cellYield(state, x, y), null);
 });
+
+Deno.test("a gathered event keeps its inventory while state gathers on", () => {
+  const { x, y, item } = findYieldingCell(SEED);
+  const state = newGame(SEED);
+  state.player = { x, y };
+  // Gather at the first yielding cell, then walk to a second and gather again.
+  const first = apply(state, { type: "gather" });
+  // Find a different yielding cell and move there.
+  const second = findSecondYieldingCell(SEED, x, y);
+  for (let step = 0; step < Math.abs(second.x - state.player.x); step++) {
+    apply(state, {
+      type: "move",
+      direction: second.x > state.player.x ? "east" : "west",
+    });
+  }
+  for (let step = 0; step < Math.abs(second.y - state.player.y); step++) {
+    apply(state, {
+      type: "move",
+      direction: second.y > state.player.y ? "south" : "north",
+    });
+  }
+  apply(state, { type: "gather" });
+  // The first event's inventory snapshot is still { item: 1 }, even though
+  // state.inventory now has two items (or the same item at count 2).
+  assertEquals(first, [{
+    type: "gathered",
+    at: { x, y },
+    item,
+    inventory: { [item]: 1 },
+  }]);
+});
+
+function findSecondYieldingCell(
+  seed: number,
+  skipX: number,
+  skipY: number,
+): { x: number; y: number; item: string } {
+  for (let r = 0; r < 500; r++) {
+    for (let y = -r; y <= r; y++) {
+      for (let x = -r; x <= r; x++) {
+        if (x === skipX && y === skipY) continue;
+        const terrain = terrainAt(seed, x, y);
+        if (!isPassable(terrain)) continue;
+        const item = TERRAIN_YIELDS[terrain];
+        if (item !== null) return { x, y, item };
+      }
+    }
+  }
+  throw new Error("No second yielding cell found near the origin.");
+}

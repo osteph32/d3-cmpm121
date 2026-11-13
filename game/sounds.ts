@@ -1,13 +1,15 @@
 import type { GameEvent } from "../core/mod.ts";
 
-type SoundName = "step" | "bump" | "chime";
+type SoundName = "step" | "bump" | "chime" | "gather" | "craft";
 
 // Which sound each event plays. A new event fails to type-check until it has an entry.
 const SOUND_FOR: Record<GameEvent["type"], SoundName | null> = {
   moved: "step",
   blocked: "bump",
-  gathered: "chime",
+  gathered: "gather",
   gatherFailed: null,
+  crafted: "craft",
+  craftFailed: null,
 };
 
 type Note = {
@@ -23,6 +25,15 @@ const NOTES: Record<SoundName, Note[]> = {
   chime: [
     { frequency: 660, seconds: 0.18, wave: "sine" },
     { frequency: 990, seconds: 0.25, wave: "sine", at: 0.09 },
+  ],
+  gather: [
+    { frequency: 520, seconds: 0.12, wave: "sine" },
+    { frequency: 780, seconds: 0.18, wave: "sine", at: 0.06 },
+  ],
+  craft: [
+    { frequency: 440, seconds: 0.15, wave: "sine" },
+    { frequency: 660, seconds: 0.12, wave: "sine", at: 0.08 },
+    { frequency: 880, seconds: 0.18, wave: "sine", at: 0.16 },
   ],
 };
 
@@ -72,16 +83,17 @@ export class Sounds {
     }
   }
 
+  // play a sound by synthesizing it with Web Audio. The notes are in  held in NOTES
   private play(sound: SoundName) {
     const { context } = this;
     if (!context || this.muted) return;
     for (const { frequency, seconds, wave, at = 0 } of NOTES[sound]) {
       const begin = context.currentTime + at;
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
+      const oscillator = context.createOscillator(); // oscillator generates the tone at the given frequency and waveform
+      const gain = context.createGain(); // gain node controls volume; we use it to fade the note
       oscillator.type = wave;
       oscillator.frequency.value = frequency;
-      gain.gain.setValueAtTime(VOLUME, begin);
+      gain.gain.setValueAtTime(VOLUME, begin); // start at VOLUME, then fade exponentially to near-silence by end
       gain.gain.exponentialRampToValueAtTime(0.001, begin + seconds);
       oscillator.connect(gain).connect(context.destination);
       oscillator.start(begin);

@@ -3,3 +3,4 @@
 // Hexagonal Architecture (core inside, Phaser and tests as adapters): https://alistair.cockburn.us/hexagonal-architecture
 export * from "./rules.ts";
 export * from "./terrain.ts";
+export * from "./recipes.ts";

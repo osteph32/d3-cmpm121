@@ -8,6 +8,7 @@ import {
   TERRAIN_YIELDS,
   terrainAt,
 } from "./terrain.ts";
+import { type Recipe, RECIPES } from "./recipes.ts";
 
 export type Cell = { x: number; y: number };
 
@@ -29,7 +30,8 @@ export type GameState = {
 // move carries a direction; gather takes none, it acts on the cell under the player.
 export type Command =
   | { type: "move"; direction: Direction }
-  | { type: "gather" };
+  | { type: "gather" }
+  | { type: "craft"; recipe: string };
 
 // Domain Event: https://martinfowler.com/eaaDev/DomainEvent.html
 // gathered carries the item name so displays can show it without asking the core.
@@ -37,8 +39,20 @@ export type Command =
 export type GameEvent =
   | { type: "moved"; from: Cell; to: Cell }
   | { type: "blocked"; at: Cell; toward: Cell; terrain: Terrain }
-  | { type: "gathered"; at: Cell; item: string }
-  | { type: "gatherFailed"; at: Cell };
+  | {
+    type: "gathered";
+    at: Cell;
+    item: string;
+    inventory: Record<string, number>;
+  }
+  | { type: "gatherFailed"; at: Cell }
+  | {
+    type: "crafted";
+    recipe: string;
+    output: string;
+    inventory: Record<string, number>;
+  }
+  | { type: "craftFailed"; recipe: string; missing: Record<string, number> };
 
 const STEPS: Record<Direction, Cell> = {
   north: { x: 0, y: -1 },
@@ -59,6 +73,8 @@ export function apply(state: GameState, command: Command): GameEvent[] {
       return move(state, command.direction);
     case "gather":
       return gather(state);
+    case "craft":
+      return craft(state, command.recipe);
   }
 }
 
@@ -102,7 +118,48 @@ function gather(state: GameState): GameEvent[] {
     return [{ type: "gatherFailed", at: { ...state.player } }];
   }
   // An item never held reads as undefined, so count from ?? 0.
-  state.inventory[item] = (state.inventory[item] ?? 0) + 1; // Increment the count of that item in the player's inventory.
-  state.changedCells[`${x},${y}`] = null; // Add cell to changedCells with value null to indicate it has been depleted
-  return [{ type: "gathered", at: { ...state.player }, item }];
+  state.inventory[item] = (state.inventory[item] ?? 0) + 1;
+  state.changedCells[`${x},${y}`] = null;
+  return [{
+    type: "gathered",
+    at: { ...state.player },
+    item,
+    inventory: { ...state.inventory },
+  }];
+}
+
+// Specification: what inputs are still needed for a recipe, as data.
+// Empty means the recipe is ready to craft.
+export function missing(
+  inventory: Record<string, number>,
+  recipe: Recipe,
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [item, need] of Object.entries(recipe.inputs)) {
+    const have = inventory[item] ?? 0;
+    if (have < need) result[item] = need - have;
+  }
+  return result;
+}
+
+function craft(state: GameState, recipeName: string): GameEvent[] {
+  const recipe = RECIPES.find((r) => r.name === recipeName);
+  if (!recipe) {
+    return [{ type: "craftFailed", recipe: recipeName, missing: {} }];
+  }
+  const lack = missing(state.inventory, recipe);
+  if (Object.keys(lack).length > 0) {
+    return [{ type: "craftFailed", recipe: recipeName, missing: lack }];
+  }
+  for (const [item, count] of Object.entries(recipe.inputs)) {
+    state.inventory[item] -= count;
+    if (state.inventory[item] === 0) delete state.inventory[item];
+  }
+  state.inventory[recipe.output] = (state.inventory[recipe.output] ?? 0) + 1;
+  return [{
+    type: "crafted",
+    recipe: recipeName,
+    output: recipe.output,
+    inventory: { ...state.inventory },
+  }];
 }
