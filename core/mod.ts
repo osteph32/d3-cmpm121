@@ -4,3 +4,4 @@
 export * from "./rules.ts";
 export * from "./terrain.ts";
 export * from "./recipes.ts";
+export * from "./can_reach.ts";

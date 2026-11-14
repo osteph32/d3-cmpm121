@@ -5,11 +5,14 @@ import { isPassable, type Terrain, terrainAt } from "./mod.ts";
 export function findCellOfTerrain(
   seed: number,
   terrain: Terrain,
+  inventory: Record<string, number> = {},
 ): { x: number; y: number } {
   for (let r = 0; r < 500; r++) {
     for (let y = -r; y <= r; y++) {
       for (let x = -r; x <= r; x++) {
-        if (terrainAt(seed, x, y) === terrain && isPassable(terrain)) {
+        if (
+          terrainAt(seed, x, y) === terrain && isPassable(terrain, inventory)
+        ) {
           return { x, y };
         }
       }

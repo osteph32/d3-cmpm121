@@ -11,4 +11,5 @@ export type Recipe = {
 export const RECIPES: Recipe[] = [
   { name: "cloth", inputs: { fiber: 3 }, output: "cloth" },
   { name: "plank", inputs: { wood: 2 }, output: "plank" },
+  { name: "pickaxe", inputs: { wood: 1, fiber: 1 }, output: "pickaxe" },
 ];

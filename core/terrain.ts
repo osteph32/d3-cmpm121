@@ -13,8 +13,14 @@ export function terrainAt(seed: number, x: number, y: number): Terrain {
   return noise(seed + 2, x, y, 6) < 0.45 ? "forest" : "grass";
 }
 
-export function isPassable(terrain: Terrain): boolean {
-  return terrain !== "water" && terrain !== "rock";
+export function isPassable(
+  terrain: Terrain,
+  inventory: Record<string, number> = {},
+): boolean {
+  if (terrain === "grass" || terrain === "forest") return true;
+  const opener = OPENS[terrain];
+  if (opener === null) return false;
+  return (inventory[opener] ?? 0) > 0;
 }
 
 // Type Object: what each terrain yields is a row of data, not a branch in code.
@@ -23,7 +29,17 @@ export const TERRAIN_YIELDS: Record<Terrain, string | null> = {
   grass: "fiber",
   forest: "wood",
   water: null,
-  rock: null,
+  rock: "stone",
+};
+
+// Type Object: which item opens each barrier terrain. null means nothing
+// opens it. Grass and forest are always passable; this table only matters
+// for water and rock.
+export const OPENS: Record<Terrain, string | null> = {
+  grass: null,
+  forest: null,
+  water: null,
+  rock: "pickaxe",
 };
 
 // Value noise: random numbers at coarse grid points, blended between them, so

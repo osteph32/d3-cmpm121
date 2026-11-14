@@ -87,7 +87,7 @@ function move(state: GameState, direction: Direction): GameEvent[] {
   const from = { ...state.player };
   const to = { x: from.x + step.x, y: from.y + step.y };
   const terrain = terrainAt(state.seed, to.x, to.y);
-  if (!isPassable(terrain)) {
+  if (!isPassable(terrain, state.inventory)) {
     return [{ type: "blocked", at: from, toward: to, terrain }];
   }
   state.player.x = to.x;

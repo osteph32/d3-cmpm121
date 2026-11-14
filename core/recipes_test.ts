@@ -57,3 +57,29 @@ Deno.test("every recipe input has a source (gatherable or craftable)", () => {
     }
   }
 });
+
+Deno.test("a crafted event keeps its inventory while state crafts on", () => {
+  const state = newGame(SEED);
+  const recipe = RECIPES[0];
+  // Set up enough for two crafts of the same recipe.
+  for (const [item, count] of Object.entries(recipe.inputs)) {
+    state.inventory[item] = count * 2;
+  }
+
+  const first = apply(state, { type: "craft", recipe: recipe.name });
+  apply(state, { type: "craft", recipe: recipe.name });
+
+  // The first event's inventory copy still reflects after one craft,
+  // even though state.inventory has now been changed by the second.
+  assertEquals(first, [{
+    type: "crafted",
+    recipe: recipe.name,
+    output: recipe.output,
+    inventory: {
+      [recipe.output]: 1,
+      ...Object.fromEntries(
+        Object.entries(recipe.inputs).map(([item, count]) => [item, count]),
+      ),
+    },
+  }]);
+});

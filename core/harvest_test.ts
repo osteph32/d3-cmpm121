@@ -152,7 +152,7 @@ function findSecondYieldingCell(
       for (let x = -r; x <= r; x++) {
         if (x === skipX && y === skipY) continue;
         const terrain = terrainAt(seed, x, y);
-        if (!isPassable(terrain)) continue;
+        if (!isPassable(terrain, {})) continue;
         const item = TERRAIN_YIELDS[terrain];
         if (item !== null) return { x, y, item };
       }
