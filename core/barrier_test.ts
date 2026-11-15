@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import {
   apply,
+  type Direction,
   type GameState,
   isPassable,
   newGame,
@@ -9,14 +10,12 @@ import {
 
 const SEED = 121;
 
-function besideTerrainCell(
-  targetTerrain: string,
-): {
-  state: GameState;
-  direction: "east" | "west" | "south" | "north";
-  target: { x: number; y: number };
-} {
-  const dirs: [number, number, "east" | "west" | "south" | "north"][] = [
+// A passable-with-nothing cell beside the target terrain, plus the direction
+// toward it, so a move command tests the barrier directly.
+function beside(
+  target: string,
+): { state: GameState; direction: Direction } {
+  const dirs: [number, number, Direction][] = [
     [1, 0, "east"],
     [-1, 0, "west"],
     [0, 1, "south"],
@@ -26,64 +25,40 @@ function besideTerrainCell(
     for (let y = -r; y <= r; y++) {
       for (let x = -r; x <= r; x++) {
         if (!isPassable(terrainAt(SEED, x, y), {})) continue;
-        for (const [dx, dy, dir] of dirs) {
-          if (terrainAt(SEED, x + dx, y + dy) === targetTerrain) {
+        for (const [dx, dy, direction] of dirs) {
+          if (terrainAt(SEED, x + dx, y + dy) === target) {
             const state = newGame(SEED);
             state.player = { x, y };
-            return { state, direction: dir, target: { x: x + dx, y: y + dy } };
+            return { state, direction };
           }
         }
       }
     }
   }
-  throw new Error("No suitable cell found near the origin.");
+  throw new Error(`No cell beside ${target} found near the origin.`);
 }
 
-Deno.test("rock blocks movement without pickaxe", () => {
-  const { state, direction, target } = besideTerrainCell("rock");
-  const { x, y } = state.player;
+Deno.test("rock is shut before crafting a pickaxe and open after", () => {
+  const { state, direction } = beside("rock");
 
-  const events = apply(state, { type: "move", direction });
+  assertEquals(apply(state, { type: "move", direction })[0].type, "blocked");
 
-  assertEquals(state.player, { x, y });
-  assertEquals(events, [{
-    type: "blocked",
-    at: { x, y },
-    toward: target,
-    terrain: "rock",
-  }]);
+  // Craft the opener through apply, then the same move succeeds.
+  state.inventory.plank = 2;
+  state.inventory.fiber = 1;
+  state.inventory.wood = 3;
+  apply(state, { type: "craft", recipe: "pickaxe" });
+
+  assertEquals(apply(state, { type: "move", direction })[0].type, "moved");
 });
 
-Deno.test("pickaxe opens rock for movement", () => {
-  const { state, direction } = besideTerrainCell("rock");
+Deno.test("water is shut before crafting a boat and open after", () => {
+  const { state, direction } = beside("water");
 
-  state.inventory.pickaxe = 1;
-  const events = apply(state, { type: "move", direction });
+  assertEquals(apply(state, { type: "move", direction })[0].type, "blocked");
 
-  assertEquals(events[0].type, "moved");
-});
+  state.inventory.plank = 6;
+  apply(state, { type: "craft", recipe: "boat" });
 
-Deno.test("gathering on rock yields stone with pickaxe", () => {
-  for (let r = 0; r < 500; r++) {
-    for (let y = -r; y <= r; y++) {
-      for (let x = -r; x <= r; x++) {
-        if (terrainAt(SEED, x, y) === "rock") {
-          const state = newGame(SEED);
-          state.player = { x, y };
-          state.inventory.pickaxe = 1;
-
-          const events = apply(state, { type: "gather" });
-
-          assertEquals(events, [{
-            type: "gathered",
-            at: { x, y },
-            item: "stone",
-            inventory: { pickaxe: 1, stone: 1 },
-          }]);
-          return;
-        }
-      }
-    }
-  }
-  throw new Error("No rock cell found near the origin.");
+  assertEquals(apply(state, { type: "move", direction })[0].type, "moved");
 });

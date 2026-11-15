@@ -83,3 +83,28 @@ Deno.test("a crafted event keeps its inventory while state crafts on", () => {
     },
   }]);
 });
+
+Deno.test("a once-recipe cannot be crafted again while owned", () => {
+  const state = newGame(SEED);
+  const recipe = RECIPES.find((r) => r.once === true)!;
+  for (const [item, count] of Object.entries(recipe.inputs)) {
+    state.inventory[item] = count;
+  }
+
+  const first = apply(state, { type: "craft", recipe: recipe.name });
+  assertEquals(first[0].type, "crafted");
+
+  // Restock the inputs: still refuses because the output is already owned.
+  for (const [item, count] of Object.entries(recipe.inputs)) {
+    state.inventory[item] = count;
+  }
+  const snapshot = JSON.parse(JSON.stringify(state));
+  const second = apply(state, { type: "craft", recipe: recipe.name });
+
+  assertEquals(second, [{
+    type: "craftMaxed",
+    recipe: recipe.name,
+    output: recipe.output,
+  }]);
+  assertEquals(state, snapshot);
+});

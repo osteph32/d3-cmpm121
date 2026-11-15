@@ -1,4 +1,4 @@
-import { apply, type Command, type Direction } from "../core/mod.ts";
+import { apply, type Command, type Direction, RECIPES } from "../core/mod.ts";
 import type { GameState } from "../core/mod.ts";
 import type { Presenter } from "./presenter.ts";
 
@@ -45,6 +45,18 @@ export class Controller {
       event.preventDefault();
       if (event.repeat) return;
       this.pressed = { type: "gather" };
+      this.next();
+      return;
+    }
+    // Number keys craft the matching recipe, in recipe-table order.
+    const index = Number(event.key) - 1;
+    if (
+      event.key >= "1" && event.key <= "9" && !event.ctrlKey &&
+      !event.metaKey && !event.altKey && RECIPES[index] !== undefined
+    ) {
+      event.preventDefault();
+      if (event.repeat) return;
+      this.pressed = { type: "craft", recipe: RECIPES[index].name };
       this.next();
       return;
     }

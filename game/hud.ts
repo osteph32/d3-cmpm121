@@ -30,7 +30,10 @@ function describe(event: GameEvent): string {
     case "gatherFailed":
       return `nothing to gather at ${event.at.x}, ${event.at.y}`;
     case "crafted":
-      return `crafted ${event.output}`;
+      // The capstone's crafted event carries won, so the panel can announce it.
+      return event.won === true
+        ? `crafted ${event.output} - the game is won!`
+        : `crafted ${event.output}`;
     // craftFailed lists what is still missing, e.g. "need 3 fiber for cloth"
     case "craftFailed": {
       const needs = Object.entries(event.missing).map(([item, count]) =>
@@ -40,6 +43,8 @@ function describe(event: GameEvent): string {
         ? `need ${needs} for ${event.recipe}`
         : `unknown recipe: ${event.recipe}`;
     }
+    case "craftMaxed":
+      return `already crafted ${event.output}`;
   }
 }
 

@@ -28,8 +28,19 @@ export function isPassable(
 export const TERRAIN_YIELDS: Record<Terrain, string | null> = {
   grass: "fiber",
   forest: "wood",
-  water: null,
+  // Gathering water needs a water bucket, checked by gather() via GATHER_TOOLS.
+  water: "water bottle",
   rock: "stone",
+};
+
+// Type Object: which item is needed to gather from each terrain. null means
+// gathering is free. Water yields nothing without a water bucket in hand,
+// even if the player boated onto the tile.
+export const GATHER_TOOLS: Record<Terrain, string | null> = {
+  grass: null,
+  forest: null,
+  water: "water bucket",
+  rock: null,
 };
 
 // Type Object: which item opens each barrier terrain. null means nothing
@@ -38,7 +49,7 @@ export const TERRAIN_YIELDS: Record<Terrain, string | null> = {
 export const OPENS: Record<Terrain, string | null> = {
   grass: null,
   forest: null,
-  water: null,
+  water: "boat",
   rock: "pickaxe",
 };
 

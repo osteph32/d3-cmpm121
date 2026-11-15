@@ -3,6 +3,7 @@
 // apply() decides how, or whether, to show them over time.
 
 import {
+  GATHER_TOOLS,
   isPassable,
   type Terrain,
   TERRAIN_YIELDS,
@@ -14,16 +15,14 @@ export type Cell = { x: number; y: number };
 
 export type Direction = "north" | "south" | "east" | "west";
 
-// Plain data that survives JSON. Terrain is absent because the seed can recompute
-// it: besides the seed, only what the player has caused belongs here. Inventory
-// counts items by name (a plain string, not a union, so step 3 can add kinds
-// freely). changedCells stores only the cells the player has altered, keyed by
-// "x,y", so saved state stays small and a plain object survives JSON.
+// Plain data that survives JSON: the seed regenerates terrain, so only what
+// the player caused is stored (inventory, altered cells, and whether they won).
 export type GameState = {
   seed: number;
   player: Cell;
   inventory: Record<string, number>;
   changedCells: Record<string, string | null>;
+  won: boolean;
 };
 
 // Command: https://gameprogrammingpatterns.com/command.html
@@ -51,8 +50,10 @@ export type GameEvent =
     recipe: string;
     output: string;
     inventory: Record<string, number>;
+    won?: true;
   }
-  | { type: "craftFailed"; recipe: string; missing: Record<string, number> };
+  | { type: "craftFailed"; recipe: string; missing: Record<string, number> }
+  | { type: "craftMaxed"; recipe: string; output: string };
 
 const STEPS: Record<Direction, Cell> = {
   north: { x: 0, y: -1 },
@@ -63,11 +64,19 @@ const STEPS: Record<Direction, Cell> = {
 
 // Singleton, avoided on purpose: tests make as many games as they need. https://gameprogrammingpatterns.com/singleton.html
 export function newGame(seed: number): GameState {
-  return { seed, player: { x: 0, y: 0 }, inventory: {}, changedCells: {} };
+  return {
+    seed,
+    player: { x: 0, y: 0 },
+    inventory: {},
+    changedCells: {},
+    won: false,
+  };
 }
 
 // The single way in. It updates the state it is given and returns the events.
+// A won game is over: the core ignores every further command.
 export function apply(state: GameState, command: Command): GameEvent[] {
+  if (state.won) return [];
   switch (command.type) {
     case "move":
       return move(state, command.direction);
@@ -109,10 +118,15 @@ export function cellYield(
   return TERRAIN_YIELDS[terrainAt(state.seed, x, y)];
 }
 
-// Gather from the cell the player stands on. If cellYield returns null, the cell
-// is depleted or non-yielding, so nothing changes.
+// Gather from the cell the player stands on. If the terrain needs a tool the
+// player lacks, or cellYield returns null, the cell is depleted or non-yielding,
+// so nothing changes.
 function gather(state: GameState): GameEvent[] {
   const { x, y } = state.player;
+  const tool = GATHER_TOOLS[terrainAt(state.seed, x, y)];
+  if (tool !== null && (state.inventory[tool] ?? 0) < 1) {
+    return [{ type: "gatherFailed", at: { ...state.player } }];
+  }
   const item = cellYield(state, x, y);
   if (item === null) {
     return [{ type: "gatherFailed", at: { ...state.player } }];
@@ -147,6 +161,10 @@ function craft(state: GameState, recipeName: string): GameEvent[] {
   if (!recipe) {
     return [{ type: "craftFailed", recipe: recipeName, missing: {} }];
   }
+  // A once-recipe cannot be crafted while the player owns its output.
+  if (recipe.once && (state.inventory[recipe.output] ?? 0) > 0) {
+    return [{ type: "craftMaxed", recipe: recipeName, output: recipe.output }];
+  }
   const lack = missing(state.inventory, recipe);
   if (Object.keys(lack).length > 0) {
     return [{ type: "craftFailed", recipe: recipeName, missing: lack }];
@@ -156,10 +174,14 @@ function craft(state: GameState, recipeName: string): GameEvent[] {
     if (state.inventory[item] === 0) delete state.inventory[item];
   }
   state.inventory[recipe.output] = (state.inventory[recipe.output] ?? 0) + 1;
+  // Crafting the capstone wins the game; state and the event both report it.
+  const won = recipe.wins === true;
+  if (won) state.won = true;
   return [{
     type: "crafted",
     recipe: recipeName,
     output: recipe.output,
     inventory: { ...state.inventory },
+    ...(won ? { won: true } : {}),
   }];
 }
