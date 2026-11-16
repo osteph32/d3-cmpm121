@@ -50,8 +50,8 @@ export type GameEvent =
     recipe: string;
     output: string;
     inventory: Record<string, number>;
-    won?: true;
   }
+  | { type: "won" }
   | { type: "craftFailed"; recipe: string; missing: Record<string, number> }
   | { type: "craftMaxed"; recipe: string; output: string };
 
@@ -175,13 +175,18 @@ function craft(state: GameState, recipeName: string): GameEvent[] {
   }
   state.inventory[recipe.output] = (state.inventory[recipe.output] ?? 0) + 1;
   // Crafting the capstone wins the game; state and the event both report it.
-  const won = recipe.wins === true;
-  if (won) state.won = true;
-  return [{
+
+  const events: GameEvent[] = [{
     type: "crafted",
     recipe: recipeName,
     output: recipe.output,
     inventory: { ...state.inventory },
-    ...(won ? { won: true } : {}),
   }];
+
+  if (recipe.wins) {
+    state.won = true;
+    events.push({ type: "won" });
+  }
+
+  return events;
 }

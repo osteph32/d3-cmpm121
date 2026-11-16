@@ -33,5 +33,10 @@ export const RECIPES: Recipe[] = [
     output: "water bucket",
     once: true,
   }, //unlocks gathering on water
-  // still need to add winning item, setting its wins:true
+  {
+    name: "survival kit",
+    inputs: { cloth: 1, plank: 1, "water bucket": 1 },
+    output: "survival kit",
+    wins: true,
+  }, //unlocks win condition
 ];
