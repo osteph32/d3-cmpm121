@@ -31,9 +31,9 @@ function describe(event: GameEvent): string {
       return `nothing to gather at ${event.at.x}, ${event.at.y}`;
     case "crafted":
       // The capstone's crafted event carries won, so the panel can announce it.
-      return event.won === true
-        ? `crafted ${event.output} - the game is won!`
-        : `crafted ${event.output}`;
+      return `Crafted ${event.output}.`;
+    case "won":
+      return "Expedition complete! Your survival kit is packed for the journey home.";
     // craftFailed lists what is still missing, e.g. "need 3 fiber for cloth"
     case "craftFailed": {
       const needs = Object.entries(event.missing).map(([item, count]) =>
@@ -70,6 +70,11 @@ export class Hud {
     // crafted: refresh inventory (inputs spent, output added)
     if (event.type === "crafted") {
       this.showInventory(event.inventory);
+    }
+
+    if (event.type === "won") {
+      const banner = document.querySelector<HTMLElement>("#win-banner");
+      if (banner) banner.hidden = false;
     }
   }
 
