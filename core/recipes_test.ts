@@ -108,3 +108,21 @@ Deno.test("a once-recipe cannot be crafted again while owned", () => {
   }]);
   assertEquals(state, snapshot);
 });
+
+Deno.test("a failed cloth craft reports only the fiber still needed", () => {
+  const state = newGame(SEED);
+  const cloth = RECIPES.find((recipe) => recipe.name === "cloth");
+  if (!cloth) throw new Error("Missing cloth recipe");
+
+  state.inventory.fiber = cloth.inputs.fiber - 1;
+  const before = JSON.parse(JSON.stringify(state));
+
+  const events = apply(state, { type: "craft", recipe: cloth.name });
+
+  assertEquals(events, [{
+    type: "craftFailed",
+    recipe: cloth.name,
+    missing: { fiber: 1 },
+  }]);
+  assertEquals(state, before);
+});
