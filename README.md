@@ -1,8 +1,14 @@
 # D3 Project
 
-Walk around the world using arrow keys. Press g to collect harvestable cells. If you are blocked off, you have not crafted the required item. The game ends when a certain item is successfully crafted.
+Target: A walking focused & crafting game where the player wanders various types of land including wilderness of grass, forest, water. Crafted tools change where the player can access. The game is won by crafting a final capstone item. Visually it is flat, dark-toned pixel-style tiles with a simple side HUD, and the sound is composed of web-based beeps: a soft step tone, a low bump, and a rising chime for crafting.
 
-Install [Deno](https://docs.deno.com/runtime/getting_started/installation/) and [Git](https://git-scm.com/downloads). Create your own repository from this template, clone it, open a terminal in that folder, and run `deno task setup` once. Run `deno task dev` and open the local URL printed in the terminal (normally `http://localhost:3000`). Arrow keys move. Add `?seed=7` to the URL for another world. Open the repository folder itself in VS Code, not a parent folder, and accept the recommended Deno extension. If Phaser still shows errors or `any` after `deno task setup`, type or save in that file once.
+## Link
+
+https://osteph32.github.io/d3-cmpm121/
+
+## Instructions
+
+Install [Deno](https://docs.deno.com/runtime/getting_started/installation/) and [Git](https://git-scm.com/downloads). Create your own repository from this template, clone it, open a terminal in that folder, and run `deno task setup` once. Run `deno task dev` and open the local URL printed in the terminal (normally `http://localhost:3000`). Walk around the world using arrow keys. Press g to collect harvestable cells. If you are blocked off, you have not crafted the required item. The game ends when a certain item is successfully crafted.
 
 ## Two folders, two rules
 
@@ -40,6 +46,13 @@ Named here so you can read about them. Each also appears in a one-line comment w
 ## Tests
 
 `deno task test` runs every `*_test.ts` file in `core/`, with no browser involved. The samples show the shape: a move, a blocked move that changes nothing, an event that keeps its cells while state moves on, terrain determinism, a check that no seed starts walled in, and a replay that plays the same seed and commands twice and compares the results. Add your own beside them.
+
+## How to add a recipe:
+
+1. **Add a row to `core/recipes.ts`.** Each entry in the `RECIPES` array has a `name`, `inputs` (a map of item to count), and `output`. Set `once: true` for a one-time tool (it grays out in the book once owned), and set `wins: true` on the capstone item that ends the game. The `Recipe` type in the same file documents every field.
+2. **Nothing else in `core/` needs editing.** `core/rules.ts` already turns a `{ type: "craft"; recipe }` command into a `crafted` (or `craftFailed` / `craftMaxed`) event by looking the name up in `RECIPES`, and barriers in `core/can_reach.ts` and `core/rules.ts` key off item names, not recipe rows, so a new output item unlocks terrain automatically once the player owns it.
+3. **The UI for the recipie is created on its own.`game/recipe_book.ts` builds one clickable button per row in `RECIPES`, and `game/controller.ts` binds the number keys to recipes in table order, so a new row at the end of the array gets the next number key with no code change.
+4. **Make sure every input is reachable.** `core/recipes_test.ts` asserts that each recipe's inputs are either gatherable from terrain or craftable by another recipe, and `core/can_reach_test.ts` runs a fixpoint check that every recipe can eventually be completed starting from a bare inventory. Add your row, run `deno task test`, and these tests will tell you if an input has no source OR if your recipe depends on something the player can never make.
 
 ## Tasks
 
